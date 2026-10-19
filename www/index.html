@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#3b6e5a">
+<title>Tempe Monitor</title>
+<style>
+  :root{--bg:#f6f4ef;--card:#fff;--tx:#1f2a24;--mut:#6b756e;--line:#e4e0d6;--ok:#2f7d4f;--bad:#b3392f;--ac:#3b6e5a;--t:#c2553a;--h:#3b7ea6}
+  @media (prefers-color-scheme:dark){:root{--bg:#141a17;--card:#1d2420;--tx:#e8eee9;--mut:#93a097;--line:#2c3630;--ok:#5cc98a;--bad:#e5695e;--ac:#6fb59b}}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.45 system-ui,sans-serif;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}
+  header{display:flex;align-items:center;justify-content:space-between;padding:14px 16px 6px}
+  h1{font-size:19px;margin:0} .sub{font-size:12px;color:var(--mut)}
+  main{padding:8px 16px 28px;max-width:640px;margin:0 auto}
+  .grid{display:grid;gap:10px;grid-template-columns:1fr 1fr}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:13px;margin-bottom:10px}
+  .grid .card{margin:0}.grid+.card,.grid+.grid{margin-top:10px}
+  .lbl{color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.05em}
+  .val{font-size:34px;font-weight:650;line-height:1.1;margin-top:3px}.unit{font-size:14px;color:var(--mut);font-weight:400}
+  .pill{display:inline-block;padding:2px 10px;border-radius:99px;font-size:12px;font-weight:600;border:1px solid var(--line);color:var(--mut)}
+  .on{color:var(--ok);border-color:var(--ok)}.bad{color:var(--bad);border-color:var(--bad)}
+  .swatch{height:30px;border-radius:8px;border:1px solid var(--line);margin-top:8px}
+  .note{color:var(--mut);font-size:12px;margin-top:5px}
+  .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+  button,input{font:inherit}
+  button{padding:10px 14px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--tx)}
+  button.act{background:var(--ac);color:#fff;border-color:var(--ac)}
+  .seg{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+  .three{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}
+  .actrow{display:flex;justify-content:space-between;align-items:center;padding:6px 0}
+  input{width:100%;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--tx);margin-top:6px}
+  svg{width:100%;height:auto;display:block}
+  #pengaturan{display:none}
+  .legend{display:flex;gap:14px;font-size:12px;color:var(--mut);margin-top:4px}
+  .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px}
+</style>
+</head>
+<body>
+<header>
+  <div><h1>Tempe Monitor</h1><div class="sub"><span id="koneksi" class="pill">belum terhubung</span> <span id="ts"></span></div></div>
+  <button id="bGear" aria-label="Pengaturan">⚙︎</button>
+</header>
+<main>
+  <div id="pengaturan" class="card">
+    <div class="lbl">Server Firebase</div>
+    <input id="iHost" placeholder="xxx-default-rtdb.asia-southeast1.firebasedatabase.app" autocapitalize="off" autocorrect="off" spellcheck="false">
+    <input id="iAuth" placeholder="Auth / secret (kosongkan bila tidak dipakai)" autocapitalize="off" spellcheck="false">
+    <div class="row"><button class="act" id="bSimpan">Simpan</button><button id="bTutup">Tutup</button></div>
+    <div class="note">Sama dengan FIREBASE_HOST di config.h pada ESP32.</div>
+  </div>
+
+  <div class="grid">
+    <div class="card"><div class="lbl">Suhu</div><div class="val"><span id="suhu">–</span><span class="unit"> °C</span></div></div>
+    <div class="card"><div class="lbl">Kelembapan</div><div class="val"><span id="kel">–</span><span class="unit"> %</span></div></div>
+  </div>
+  <div class="grid">
+    <div class="card"><div class="lbl">Fase tempe</div><div style="font-weight:650;font-size:17px;margin-top:4px" id="fase">–</div><div class="swatch" id="swatch"></div><div class="note" id="rgb"></div></div>
+    <div class="card"><div class="lbl">Lama fermentasi</div><div class="val"><span id="jam">–</span><span class="unit"> jam</span></div></div>
+  </div>
+
+  <div class="card">
+    <div class="lbl">Aktuator</div>
+    <div class="actrow"><span>Heater</span><span><span class="note" id="dHeater"></span> <span id="sHeater" class="pill">MATI</span></span></div>
+    <div class="actrow"><span>Humidifier</span><span id="sHum" class="pill">MATI</span></div>
+    <div class="actrow"><span>Kipas</span><span><span class="note" id="dFan"></span> <span id="sFan" class="pill">MATI</span></span></div>
+  </div>
+
+  <div class="card">
+    <div class="lbl">Mode kontrol</div>
+    <div class="seg"><button id="bAuto">Otomatis (Fuzzy)</button><button id="bManual">Manual</button></div>
+    <div class="three" id="manual" style="display:none"><button id="mHeater">Heater</button><button id="mHum">Humidifier</button><button id="mFan">Kipas</button></div>
+    <div class="note">Pengaman suhu ≥ 39 °C di ESP32 tetap mematikan heater pada mode manual.</div>
+  </div>
+
+  <div class="card">
+    <div class="lbl">Grafik (200 data terakhir)</div>
+    <svg id="grafik" viewBox="0 0 320 170" role="img" aria-label="Grafik suhu dan kelembapan"></svg>
+    <div class="legend"><span><i class="dot" style="background:var(--t)"></i>Suhu °C</span><span><i class="dot" style="background:var(--h)"></i>Kelembapan %</span></div>
+  </div>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const sim = (k, v) => { try { if (v === undefined) return localStorage.getItem(k) || ""; localStorage.setItem(k, v); } catch (e) { return ""; } };
+let host = sim("host"), auth = sim("auth");
+let kontrol = {mode:"auto", heater:0, humidifier:0, fan:0};
+
+const base = () => "https://" + host.replace(/^https?:\/\//, "").replace(/\/+$/, "");
+const url = (path, q = "") => `${base()}/${path}.json?${q}${auth ? (q ? "&" : "") + "auth=" + encodeURIComponent(auth) : ""}`;
+async function ambil(path, q) { const r = await fetch(url(path, q)); if (!r.ok) throw new Error(r.status); return r.json(); }
+async function patch(path, obj) { const r = await fetch(url(path), {method:"PATCH", body:JSON.stringify(obj)}); if (!r.ok) throw new Error(r.status); }
+
+function pill(el, aktif, teks) { el.className = "pill" + (aktif ? " on" : ""); el.textContent = teks; }
+function status(teks, kelas) { const k = $("koneksi"); k.className = "pill " + (kelas || ""); k.textContent = teks; }
+
+function tampil(d) {
+  $("suhu").textContent = d.suhu.toFixed(1);
+  $("kel").textContent = d.kelembapan.toFixed(1);
+  $("fase").textContent = d.faseNama;
+  $("jam").textContent = d.jam.toFixed(1);
+  const k = 255 / Math.max(d.r, d.g, d.b, 1), c = v => Math.min(255, v * k) | 0;
+  $("swatch").style.background = `rgb(${c(d.r)},${c(d.g)},${c(d.b)})`;
+  $("rgb").textContent = `R${d.r} G${d.g} B${d.b} · C${d.c}`;
+  pill($("sHeater"), d.heater > 0, d.heater > 0 ? "HIDUP" : "MATI"); $("dHeater").textContent = d.heater > 0 ? "PWM " + d.heater : "";
+  pill($("sHum"), d.humidifier > 0, d.humidifier > 0 ? "HIDUP" : "MATI");
+  pill($("sFan"), d.fan > 0, d.fan > 0 ? "HIDUP" : "MATI"); $("dFan").textContent = d.fan > 0 ? "PWM " + d.fan : "";
+  const umur = d.ts ? Date.now() / 1000 - d.ts : 1e9;
+  if (d.dhtGagal >= 5) status("DHT22 gagal, aktuator mati", "bad");
+  else if (umur < 30) status("ESP32 online", "on");
+  else status("ESP32 offline", "bad");
+  $("ts").textContent = d.ts ? new Date(d.ts * 1000).toLocaleTimeString("id-ID") : "";
+}
+
+function tampilKontrol() {
+  const m = kontrol.mode === "manual";
+  $("bAuto").className = m ? "" : "act"; $("bManual").className = m ? "act" : "";
+  $("manual").style.display = m ? "grid" : "none";
+  $("mHeater").className = kontrol.heater ? "act" : "";
+  $("mHum").className = kontrol.humidifier ? "act" : "";
+  $("mFan").className = kontrol.fan ? "act" : "";
+}
+async function ubah(p) { kontrol = Object.assign(kontrol, p); tampilKontrol(); try { await patch("tempe/kontrol", p); } catch (e) { status("gagal kirim perintah", "bad"); } }
+$("bAuto").onclick = () => ubah({mode:"auto"});
+$("bManual").onclick = () => ubah({mode:"manual"});
+$("mHeater").onclick = () => ubah({heater: kontrol.heater ? 0 : 1});
+$("mHum").onclick = () => ubah({humidifier: kontrol.humidifier ? 0 : 1});
+$("mFan").onclick = () => ubah({fan: kontrol.fan ? 0 : 1});
+
+// ---- grafik SVG tanpa library ----
+function garis(vals, lo, hi, W, H, pad, warna) {
+  if (vals.length < 2) return "";
+  const pts = vals.map((v, i) => `${(pad + i * (W - 2 * pad) / (vals.length - 1)).toFixed(1)},${(H - pad - (v - lo) / (hi - lo || 1) * (H - 2 * pad)).toFixed(1)}`);
+  return `<polyline fill="none" stroke="${warna}" stroke-width="2" stroke-linejoin="round" points="${pts.join(" ")}"/>`;
+}
+function gambar(arr) {
+  const W = 320, H = 170, pad = 24, svg = $("grafik");
+  if (arr.length < 2) { svg.innerHTML = `<text x="160" y="85" text-anchor="middle" fill="var(--mut)" font-size="12">Belum ada data riwayat</text>`; return; }
+  const ts = arr.map(x => x.suhu), ks = arr.map(x => x.kelembapan);
+  const tlo = Math.floor(Math.min(...ts) - 1), thi = Math.ceil(Math.max(...ts) + 1);
+  const klo = Math.floor(Math.min(...ks) - 2), khi = Math.ceil(Math.max(...ks) + 2);
+  let s = "";
+  for (let i = 0; i <= 3; i++) {
+    const y = pad + i * (H - 2 * pad) / 3;
+    s += `<line x1="${pad}" x2="${W - pad}" y1="${y}" y2="${y}" stroke="var(--line)"/>`;
+    s += `<text x="${pad - 3}" y="${y + 3}" text-anchor="end" font-size="9" fill="var(--t)">${(thi - i * (thi - tlo) / 3).toFixed(0)}</text>`;
+    s += `<text x="${W - pad + 3}" y="${y + 3}" font-size="9" fill="var(--h)">${(khi - i * (khi - klo) / 3).toFixed(0)}</text>`;
+  }
+  const f = t => new Date(t * 1000).toLocaleTimeString("id-ID", {hour: "2-digit", minute: "2-digit"});
+  s += `<text x="${pad}" y="${H - 6}" font-size="9" fill="var(--mut)">${f(arr[0].ts)}</text><text x="${W - pad}" y="${H - 6}" text-anchor="end" font-size="9" fill="var(--mut)">${f(arr[arr.length - 1].ts)}</text>`;
+  svg.innerHTML = s + garis(ts, tlo, thi, W, H, pad, "var(--t)") + garis(ks, klo, khi, W, H, pad, "var(--h)");
+}
+
+async function muatStatus() {
+  if (!host) return;
+  try { const d = await ambil("tempe/status"); if (d) tampil(d); else status("belum ada data dari ESP32", "bad"); }
+  catch (e) { status("tidak bisa menghubungi server", "bad"); }
+}
+async function muatKontrol() {
+  if (!host) return;
+  try { const d = await ambil("tempe/kontrol"); if (d) { kontrol = Object.assign({mode:"auto", heater:0, humidifier:0, fan:0}, d); } tampilKontrol(); } catch (e) {}
+}
+async function muatHistori() {
+  if (!host) return;
+  try {
+    const d = await ambil("tempe/histori", 'orderBy=%22%24key%22&limitToLast=200') || {};
+    gambar(Object.values(d).sort((a, b) => a.ts - b.ts));
+  } catch (e) {}
+}
+
+// ---- pengaturan ----
+function bukaPengaturan(b) { $("pengaturan").style.display = b ? "block" : "none"; if (b) { $("iHost").value = host; $("iAuth").value = auth; } }
+$("bGear").onclick = () => bukaPengaturan($("pengaturan").style.display !== "block");
+$("bTutup").onclick = () => bukaPengaturan(false);
+$("bSimpan").onclick = () => {
+  host = $("iHost").value.trim(); auth = $("iAuth").value.trim(); sim("host", host); sim("auth", auth);
+  bukaPengaturan(false); status("menghubungkan…"); muatStatus(); muatKontrol(); muatHistori();
+};
+
+if (!host) bukaPengaturan(true);
+tampilKontrol(); gambar([]);
+muatStatus(); muatKontrol(); muatHistori();
+setInterval(muatStatus, 3000);
+setInterval(muatKontrol, 10000);
+setInterval(muatHistori, 30000);
+</script>
+</body>
+</html>
